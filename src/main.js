@@ -1,24 +1,33 @@
 import './style.css';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
+import { $, h, renderMarkdown } from './dom.js';
 import { PERSONAS, PERSONA_ORDER } from './personas.js';
-import { MODEL_ID, streamChat, validateKey, GeminiError } from './gemini.js';
-
-marked.setOptions({ gfm: true, breaks: true });
+import { MODEL_ID, streamChat, validateKey, friendlyError, GeminiError } from './gemini.js';
+import { createQuizView } from './quiz.js';
 
 const KEY_STORAGE = 'aiprep.apiKey';
 const CHAT_STORAGE = 'aiprep.chats';
 const ROLE_STORAGE = 'aiprep.role';
+const VIEW_STORAGE = 'aiprep.view';
 
 /* ---------------------------------------------------------------- state */
 
 const state = {
   apiKey: localStorage.getItem(KEY_STORAGE) || sessionStorage.getItem(KEY_STORAGE) || '',
   role: PERSONAS[localStorage.getItem(ROLE_STORAGE)] ? localStorage.getItem(ROLE_STORAGE) : 'pm',
+  view: localStorage.getItem(VIEW_STORAGE) === 'quiz' ? 'quiz' : 'chat',
   chats: loadChats(),
   busy: false,
   controller: null,
 };
+
+const quizView = createQuizView({
+  getRole: () => state.role,
+  getApiKey: () => state.apiKey,
+  onDiscuss: (text) => {
+    setView('chat');
+    submit(text);
+  },
+});
 
 function loadChats() {
   const empty = Object.fromEntries(PERSONA_ORDER.map((id) => [id, []]));
@@ -34,23 +43,6 @@ function loadChats() {
 function saveChats() {
   localStorage.setItem(CHAT_STORAGE, JSON.stringify(state.chats));
 }
-
-/* ---------------------------------------------------------------- utils */
-
-const $ = (sel, root = document) => root.querySelector(sel);
-
-function h(tag, attrs = {}, ...children) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (k === 'class') el.className = v;
-    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
-    else if (v !== false && v != null) el.setAttribute(k, v === true ? '' : v);
-  }
-  for (const c of children.flat()) if (c != null) el.append(c);
-  return el;
-}
-
-const renderMarkdown = (text) => DOMPurify.sanitize(marked.parse(text || ''));
 
 function applyTheme(role) {
   const t = PERSONAS[role].theme;
@@ -127,7 +119,7 @@ function renderKeyGate(errorMsg = '') {
     h(
       'p',
       { class: 'gate-sub' },
-      'Interview coaching for ',
+      'Interview coaching and quizzes for ',
       h('b', { class: 'c-pm' }, 'AI Product Managers'),
       ', ',
       h('b', { class: 'c-fde' }, 'Forward Deployed Engineers'),
@@ -154,20 +146,6 @@ function renderKeyGate(errorMsg = '') {
   input.focus();
 }
 
-function friendlyError(err) {
-  if (err?.name === 'AbortError') return 'Generation stopped.';
-  if (err instanceof GeminiError) {
-    if (err.status === 401 || err.status === 403 || /api key/i.test(err.message)) {
-      return 'That API key was rejected by Google. Please check it and try again.';
-    }
-    if (err.status === 404) return `The model “${MODEL_ID}” is not available for this key.`;
-    if (err.status === 429) return 'Rate limit reached — wait a moment and try again.';
-    return err.message;
-  }
-  if (err instanceof TypeError) return 'Network error — check your internet connection.';
-  return err?.message || 'Something went wrong.';
-}
-
 /* ---------------------------------------------------------- main app */
 
 function renderApp() {
@@ -175,22 +153,23 @@ function renderApp() {
   const app = $('#app');
   app.replaceChildren();
 
+  // Compact role switcher: small circles + label (keeps the wireframe's circles).
   const roles = h(
     'nav',
     { class: 'roles', role: 'tablist', 'aria-label': 'Choose a job role' },
-    PERSONA_ORDER.map((id) => {
+    PERSONA_ORDER.map((id, n) => {
       const p = PERSONAS[id];
       return h(
         'button',
         {
-          class: `role-circle role-${id}`,
+          class: `role-btn role-${id}`,
           role: 'tab',
           'data-role': id,
           'aria-selected': String(id === state.role),
-          title: p.label,
+          title: `${p.label}  (Alt+${n + 1})`,
           onclick: () => switchRole(id),
         },
-        h('span', { class: 'role-icon' }, p.icon),
+        h('span', { class: 'role-circle' }, p.icon),
         h('span', { class: 'role-name' }, p.short),
       );
     }),
@@ -198,20 +177,38 @@ function renderApp() {
 
   const header = h(
     'header',
-    { class: 'title-bar' },
+    { class: 'topbar' },
     h('h1', { class: 'app-title' }, 'AI Interview Agent'),
+    roles,
     h(
       'div',
       { class: 'top-actions' },
-      h('span', { class: 'model-pill' }, MODEL_ID),
-      h('button', { class: 'ghost-btn', onclick: clearChat, title: 'Clear this conversation' }, 'Clear'),
-      h('button', { class: 'ghost-btn', onclick: changeKey, title: 'Change API key' }, 'API key'),
+      h('span', { class: 'model-pill', title: 'Model in use' }, MODEL_ID),
+      h('button', { class: 'icon-btn small', onclick: changeKey, title: 'Change API key', 'aria-label': 'Change API key' }, '🔑'),
     ),
   );
 
-  const subtitle = h('section', { class: 'subtitle', id: 'subtitle', 'aria-live': 'polite' });
+  // Role banner (subtitle) + Chat/Quiz switch on one slim line.
+  const viewToggle = h(
+    'div',
+    { class: 'view-toggle', role: 'tablist', 'aria-label': 'Mode' },
+    h('button', { role: 'tab', 'data-view': 'chat', onclick: () => setView('chat'), title: 'Chat with your coach' }, '💬 Chat'),
+    h('button', { role: 'tab', 'data-view': 'quiz', onclick: () => setView('quiz'), title: 'Test yourself (Alt+Q)' }, '🧠 Quiz'),
+  );
+  const subtitle = h(
+    'section',
+    { class: 'subtitle' },
+    h('div', { class: 'sub-info', id: 'sub-info', 'aria-live': 'polite' }),
+    viewToggle,
+  );
 
-  const messages = h('div', { class: 'messages', id: 'messages' });
+  // Chat view
+  const messages = h('div', { class: 'messages', id: 'messages', onscroll: updateJumpButton });
+  const jump = h(
+    'button',
+    { class: 'jump-btn', id: 'jump', type: 'button', hidden: true, onclick: () => scrollToBottom(true), 'aria-label': 'Jump to latest message' },
+    '↓ Latest',
+  );
   const chips = h('div', { class: 'chips', id: 'chips' });
 
   const textarea = h('textarea', {
@@ -238,43 +235,55 @@ function renderApp() {
         else submit();
       },
     },
+    h('button', { class: 'icon-btn small clear-btn', type: 'button', onclick: clearChat, title: 'Clear this conversation', 'aria-label': 'Clear conversation' }, '🗑'),
     textarea,
     sendBtn,
   );
 
-  app.append(
-    h(
-      'div',
-      { class: 'shell' },
-      header,
-      roles,
-      subtitle,
-      h('main', { class: 'chat glass' }, messages, chips, composer),
-      h('p', { class: 'footnote' }, 'AI can make mistakes — verify important facts. Shift+Enter for a new line.'),
-    ),
+  const chatView = h(
+    'section',
+    { class: 'chat-view', id: 'chat-view' },
+    h('div', { class: 'messages-wrap' }, messages, jump),
+    chips,
+    composer,
+    h('p', { class: 'footnote' }, 'AI can make mistakes — verify important facts. Enter to send · Shift+Enter for a new line.'),
   );
+
+  app.append(h('div', { class: 'shell' }, header, subtitle, h('main', { class: 'panel glass' }, chatView, quizView.el)));
 
   renderSubtitle();
   renderMessages();
-  textarea.focus();
+  quizView.render();
+  setView(state.view, { focus: true });
 }
 
 function renderSubtitle() {
   const p = PERSONAS[state.role];
-  const el = $('#subtitle');
+  const el = $('#sub-info');
   el.replaceChildren(
-    h('span', { class: 'sub-badge' }, `${p.icon} ${p.short} mode`),
-    h(
-      'div',
-      { class: 'sub-text' },
-      h('strong', {}, `${p.coach} · ${p.label} Coach`),
-      h('span', {}, p.subtitle),
-    ),
+    h('span', { class: 'sub-dot', 'aria-hidden': 'true' }),
+    h('strong', {}, `${p.coach} · ${p.label} Coach`),
+    h('span', { class: 'sub-desc' }, p.subtitle),
   );
   // retrigger the entrance animation
-  el.classList.remove('animate');
-  void el.offsetWidth;
-  el.classList.add('animate');
+  const bar = el.parentElement;
+  bar.classList.remove('animate');
+  void bar.offsetWidth;
+  bar.classList.add('animate');
+}
+
+function setView(view, { focus = true } = {}) {
+  state.view = view;
+  localStorage.setItem(VIEW_STORAGE, view);
+  document.querySelectorAll('.view-toggle button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.view === view)));
+  $('#chat-view').hidden = view !== 'chat';
+  quizView.el.hidden = view !== 'quiz';
+  if (view === 'chat') {
+    scrollToBottom();
+    if (focus) $('#input')?.focus();
+  } else {
+    quizView.render();
+  }
 }
 
 function messageEl(msg, persona) {
@@ -301,13 +310,28 @@ function renderMessages() {
     ...chat.map((m) => messageEl(m, persona)),
   );
 
-  const chips = $('#chips');
-  chips.replaceChildren(
+  $('#chips').replaceChildren(
     ...(chat.length === 0
       ? persona.prompts.map((text) => h('button', { class: 'chip', type: 'button', onclick: () => submit(text) }, text))
       : []),
   );
-  list.scrollTop = list.scrollHeight;
+  scrollToBottom();
+}
+
+function isNearBottom(list = $('#messages')) {
+  return list.scrollHeight - list.scrollTop - list.clientHeight < 120;
+}
+
+function scrollToBottom(smooth = false) {
+  const list = $('#messages');
+  if (!list) return;
+  list.scrollTo({ top: list.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  updateJumpButton();
+}
+
+function updateJumpButton() {
+  const btn = $('#jump');
+  if (btn) btn.hidden = isNearBottom();
 }
 
 function switchRole(id) {
@@ -316,16 +340,17 @@ function switchRole(id) {
   state.role = id;
   localStorage.setItem(ROLE_STORAGE, id);
   applyTheme(id);
-  document.querySelectorAll('.role-circle').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.role === id)));
+  document.querySelectorAll('.role-btn').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.role === id)));
   renderSubtitle();
   renderMessages();
-  $('#input')?.focus();
+  quizView.render();
+  if (state.view === 'chat') $('#input')?.focus();
 }
 
 function autoGrow() {
   const ta = $('#input');
   ta.style.height = 'auto';
-  ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
+  ta.style.height = `${Math.min(ta.scrollHeight, 180)}px`;
 }
 
 function setBusy(busy) {
@@ -349,7 +374,7 @@ async function submit(preset) {
   for (let i = chat.length - 1; i >= 0; i--) if (chat[i].error) chat.splice(i, 1);
 
   chat.push({ role: 'user', text });
-  ta.value = '';
+  if (preset == null) ta.value = '';
   autoGrow();
   renderMessages();
 
@@ -358,7 +383,7 @@ async function submit(preset) {
   const bubble = $('.bubble', node);
   bubble.innerHTML = '<span class="typing"><i></i><i></i><i></i></span>';
   $('#messages').append(node);
-  $('#messages').scrollTop = $('#messages').scrollHeight;
+  scrollToBottom();
 
   state.controller = new AbortController();
   setBusy(true);
@@ -366,11 +391,11 @@ async function submit(preset) {
   let frame = 0;
   const paint = () => {
     frame = 0;
-    if (state.role !== role) return; // user switched tabs mid-stream
-    const list = $('#messages');
-    const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 120;
+    if (state.role !== role) return; // user switched roles mid-stream
+    const follow = isNearBottom();
     bubble.innerHTML = renderMarkdown(reply.text);
-    if (nearBottom) list.scrollTop = list.scrollHeight;
+    if (follow) scrollToBottom();
+    else updateJumpButton();
   };
 
   try {
@@ -392,7 +417,7 @@ async function submit(preset) {
     } else {
       chat.push({ role: 'model', text: `⚠️ ${friendlyError(err)}`, error: true });
       if (err instanceof GeminiError && (err.status === 401 || err.status === 403)) {
-        chat.push({ role: 'model', text: 'Use the **API key** button at the top right to update your key.', error: true });
+        chat.push({ role: 'model', text: 'Use the 🔑 button at the top right to update your API key.', error: true });
       }
     }
   } finally {
@@ -400,7 +425,16 @@ async function submit(preset) {
     state.controller = null;
     setBusy(false);
     saveChats();
-    if (state.role === role) renderMessages();
+    if (state.role === role) {
+      // keep the reader's position if they scrolled up to read
+      const follow = isNearBottom();
+      const top = $('#messages').scrollTop;
+      renderMessages();
+      if (!follow) {
+        $('#messages').scrollTop = top;
+        updateJumpButton();
+      }
+    }
   }
 }
 
@@ -409,6 +443,7 @@ function stop() {
 }
 
 function clearChat() {
+  if (state.chats[state.role].length && !confirm(`Clear your ${PERSONAS[state.role].label} conversation?`)) return;
   if (state.busy) stop();
   state.chats[state.role] = [];
   saveChats();
@@ -421,6 +456,26 @@ function changeKey() {
   sessionStorage.removeItem(KEY_STORAGE);
   renderKeyGate();
 }
+
+/* ---------------------------------------------------- keyboard shortcuts */
+
+document.addEventListener('keydown', (e) => {
+  if (!$('.shell')) return; // key gate is showing
+  if (e.altKey && !e.ctrlKey && !e.metaKey) {
+    const n = ['Digit1', 'Digit2', 'Digit3'].indexOf(e.code);
+    if (n !== -1) {
+      e.preventDefault();
+      switchRole(PERSONA_ORDER[n]);
+      return;
+    }
+    if (e.key.toLowerCase() === 'q' || e.code === 'KeyQ') {
+      e.preventDefault();
+      setView(state.view === 'quiz' ? 'chat' : 'quiz');
+      return;
+    }
+  }
+  if (state.view === 'quiz' && quizView.handleKey(e)) e.preventDefault();
+});
 
 /* ---------------------------------------------------------------- boot */
 

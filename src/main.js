@@ -123,7 +123,7 @@ function renderKeyGate(errorMsg = '') {
       },
     },
     h('div', { class: 'gate-logo' }, '◆'),
-    h('h1', { class: 'gate-title' }, 'AI Role Prep'),
+    h('h1', { class: 'gate-title' }, 'AI Interview Agent'),
     h(
       'p',
       { class: 'gate-sub' },
@@ -175,32 +175,31 @@ function renderApp() {
   const app = $('#app');
   app.replaceChildren();
 
-  const tabs = h(
+  const roles = h(
     'nav',
-    { class: 'tabs', role: 'tablist', 'aria-label': 'Choose a role' },
+    { class: 'roles', role: 'tablist', 'aria-label': 'Choose a job role' },
     PERSONA_ORDER.map((id) => {
       const p = PERSONAS[id];
       return h(
         'button',
         {
-          class: `tab tab-${id}`,
+          class: `role-circle role-${id}`,
           role: 'tab',
           'data-role': id,
           'aria-selected': String(id === state.role),
+          title: p.label,
           onclick: () => switchRole(id),
         },
-        h('span', { class: 'tab-icon' }, p.icon),
-        h('span', { class: 'tab-label' }, p.label),
-        h('span', { class: 'tab-short' }, p.short),
+        h('span', { class: 'role-icon' }, p.icon),
+        h('span', { class: 'role-name' }, p.short),
       );
     }),
   );
 
   const header = h(
     'header',
-    { class: 'topbar glass' },
-    h('div', { class: 'brand' }, h('span', { class: 'brand-mark' }, '◆'), h('span', {}, 'AI Role Prep')),
-    tabs,
+    { class: 'title-bar' },
+    h('h1', { class: 'app-title' }, 'AI Interview Agent'),
     h(
       'div',
       { class: 'top-actions' },
@@ -232,7 +231,7 @@ function renderApp() {
   const composer = h(
     'form',
     {
-      class: 'composer glass',
+      class: 'composer',
       onsubmit: (e) => {
         e.preventDefault();
         if (state.busy) stop();
@@ -248,9 +247,9 @@ function renderApp() {
       'div',
       { class: 'shell' },
       header,
+      roles,
       subtitle,
-      h('main', { class: 'chat glass' }, messages, chips),
-      composer,
+      h('main', { class: 'chat glass' }, messages, chips, composer),
       h('p', { class: 'footnote' }, 'AI can make mistakes — verify important facts. Shift+Enter for a new line.'),
     ),
   );
@@ -317,7 +316,7 @@ function switchRole(id) {
   state.role = id;
   localStorage.setItem(ROLE_STORAGE, id);
   applyTheme(id);
-  document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.role === id)));
+  document.querySelectorAll('.role-circle').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.role === id)));
   renderSubtitle();
   renderMessages();
   $('#input')?.focus();

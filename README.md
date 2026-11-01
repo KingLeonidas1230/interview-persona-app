@@ -1,4 +1,4 @@
-# AI Role Prep — Interview Coach
+# AI Interview Agent
 
 An AI chat app that helps candidates prepare for three AI careers, each with its own coach persona and neon colour theme:
 
@@ -13,7 +13,7 @@ Built with **Vite (vanilla JS)** and powered by **Google Gemini 3.8 Flash** (`ge
 ## Features
 
 - **Bring your own key**: users enter their Gemini API key before using the app. The key is checked against the model, stored only in the browser (local or session storage), and sent directly to Google.
-- **Role switching with a colour-coded subtitle banner**: each tab changes the accent colours, glow, chat bubbles and coach banner.
+- **Three circular job buttons with a colour-coded subtitle banner**: each one changes the accent colours, glow, chat bubbles and coach banner.
 - **Separate chat history per role**, saved in `localStorage`.
 - **Streaming responses** rendered as sanitised Markdown (`marked` + `DOMPurify`).
 - **Quick-start prompts** for mock interviews, prep plans and deep dives.

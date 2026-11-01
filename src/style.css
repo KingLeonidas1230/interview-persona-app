@@ -278,7 +278,7 @@ body {
 .shell {
   height: 100vh;
   height: 100dvh;
-  max-width: 1100px;
+  max-width: 860px;
   margin: 0 auto;
   padding: 16px;
   display: flex;
@@ -286,78 +286,103 @@ body {
   gap: 12px;
 }
 
-.topbar {
+.title-bar {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 14px;
-  border-radius: var(--radius);
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 4px 14px;
 }
 
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* hand-drawn style underline from the sketch, as a neon line */
+.title-bar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2) 60%, transparent);
+  box-shadow: 0 0 14px var(--glow);
+  transition: background 0.4s, box-shadow 0.4s;
+}
+
+.app-title {
+  margin: 0;
+  font-size: clamp(26px, 4.4vw, 40px);
   font-weight: 700;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  background: linear-gradient(90deg, #fff 0%, var(--accent) 70%, var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 14px var(--glow));
 }
 
-.brand-mark {
-  color: var(--accent);
-  text-shadow: 0 0 12px var(--glow);
-  transition: color 0.4s;
-}
-
-.tabs {
-  flex: 1;
+/* three circular job buttons */
+.roles {
   display: flex;
-  justify-content: center;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 14px;
-  background: rgba(2, 8, 30, 0.45);
-}
-
-.tab {
-  --tab-color: var(--c-pm);
-  display: flex;
+  justify-content: space-around;
   align-items: center;
-  gap: 8px;
-  padding: 9px 14px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  background: transparent;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.role-circle {
+  --role-color: var(--c-pm);
+  width: 108px;
+  height: 108px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 2px solid color-mix(in srgb, var(--role-color) 45%, transparent);
+  background: radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--role-color) 18%, transparent), rgba(4, 12, 40, 0.75) 70%);
   color: var(--muted);
   font: 600 14px 'Inter', sans-serif;
   cursor: pointer;
-  transition: all 0.25s ease;
+  backdrop-filter: blur(10px);
+  transition: transform 0.25s ease, box-shadow 0.3s, border-color 0.3s, color 0.3s;
 }
 
-.tab-fde {
-  --tab-color: var(--c-fde);
+.role-fde {
+  --role-color: var(--c-fde);
 }
-.tab-research {
-  --tab-color: var(--c-research);
+.role-research {
+  --role-color: var(--c-research);
 }
 
-.tab:hover {
+.role-circle:hover {
+  transform: translateY(-3px);
   color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--role-color);
 }
 
-.tab[aria-selected='true'] {
-  color: var(--tab-color);
-  border-color: var(--tab-color);
-  background: color-mix(in srgb, var(--tab-color) 12%, transparent);
+.role-circle[aria-selected='true'] {
+  color: var(--role-color);
+  border-color: var(--role-color);
+  transform: scale(1.08);
+  background: radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--role-color) 35%, transparent), rgba(4, 12, 40, 0.8) 72%);
   box-shadow:
-    0 0 18px color-mix(in srgb, var(--tab-color) 40%, transparent),
-    inset 0 0 12px color-mix(in srgb, var(--tab-color) 15%, transparent);
-  text-shadow: 0 0 10px color-mix(in srgb, var(--tab-color) 70%, transparent);
+    0 0 26px color-mix(in srgb, var(--role-color) 55%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--role-color) 25%, transparent);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--role-color) 70%, transparent);
 }
 
-.tab-short {
-  display: none;
+.role-icon {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.role-name {
+  font-size: 13px;
+  letter-spacing: 0.02em;
 }
 
 .top-actions {
@@ -702,8 +727,11 @@ body {
   display: flex;
   align-items: flex-end;
   gap: 10px;
-  padding: 10px 10px 10px 16px;
-  border-radius: var(--radius);
+  margin: 0 14px 14px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(2, 8, 30, 0.65);
   transition: border-color 0.3s, box-shadow 0.3s;
 }
 
@@ -764,41 +792,39 @@ body {
 
 /* ------------------------------------------------------ responsive */
 
-@media (max-width: 860px) {
-  .topbar {
-    flex-wrap: wrap;
-  }
-  .tabs {
-    order: 3;
-    flex-basis: 100%;
-  }
-  .top-actions .model-pill {
-    display: none;
-  }
-  .top-actions {
-    margin-left: auto;
-  }
-}
-
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .shell {
     padding: 10px;
+    gap: 10px;
+  }
+  .title-bar {
+    flex-direction: column;
+    align-items: flex-start;
     gap: 8px;
   }
-  .tab-label {
-    display: none;
+  .top-actions {
+    align-self: stretch;
+    justify-content: flex-end;
   }
-  .tab-short {
-    display: inline;
+  .top-actions .model-pill {
+    margin-right: auto;
   }
-  .tab {
-    flex: 1;
-    justify-content: center;
-    padding: 9px 8px;
+  .role-circle {
+    width: 86px;
+    height: 86px;
+  }
+  .role-icon {
+    font-size: 24px;
+  }
+  .role-name {
+    font-size: 11px;
   }
   .subtitle {
-    padding: 10px 12px;
+    padding: 9px 12px;
     gap: 10px;
+  }
+  .sub-badge {
+    display: none;
   }
   .sub-text span {
     font-size: 12px;
@@ -812,9 +838,22 @@ body {
     font-size: 15px;
   }
   .chips {
-    padding-left: 16px;
+    padding-left: 12px;
   }
   .messages {
     padding: 16px 12px 8px;
+  }
+  .composer {
+    margin: 0 8px 8px;
+  }
+}
+
+@media (max-height: 720px) and (min-width: 641px) {
+  .role-circle {
+    width: 88px;
+    height: 88px;
+  }
+  .role-icon {
+    font-size: 24px;
   }
 }

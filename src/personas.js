@@ -29,6 +29,7 @@ export const PERSONAS = {
     },
     welcome:
       "Hi, I'm **Nova**, your AI Product Manager interview coach. I can run a mock interview, sharpen your product-sense answers, or help you design metrics and evals for AI features. Where would you like to start?",
+    quizTopics: ['Product sense', 'AI metrics & evals', 'AI strategy & trade-offs', 'Responsible AI', 'Behavioural & leadership'],
     prompts: [
       'Run a mock AI PM interview with me',
       'How do I answer “Design an AI feature for Spotify”?',
@@ -65,6 +66,7 @@ ${SHARED_RULES}`,
     },
     welcome:
       "Hey, I'm **Vector**, your Forward Deployed Engineer coach. We can practise customer-facing system design, live-coding an LLM integration, or handling a tricky client scenario. What do you want to drill?",
+    quizTopics: ['RAG & retrieval', 'Agents & tool calling', 'System design & security', 'Customer scenarios', 'Debugging & performance'],
     prompts: [
       'Run a mock FDE interview with me',
       'Design a RAG system for a bank’s internal documents',
@@ -103,6 +105,7 @@ ${SHARED_RULES}`,
     },
     welcome:
       "Hello, I'm **Axiom**, your AI Researcher interview coach. I can quiz you on ML fundamentals, walk through landmark papers, or stress-test a research proposal. What shall we explore?",
+    quizTopics: ['ML fundamentals', 'Transformers & attention', 'Training & fine-tuning', 'Scaling laws & evaluation', 'Research methodology'],
     prompts: [
       'Run a mock AI research interview with me',
       'Explain the Transformer attention maths, then quiz me',

@@ -99,3 +99,57 @@ export async function streamChat({ apiKey, system, history, onToken, signal }) {
   }
   return full;
 }
+
+/**
+ * One-shot JSON generation (used by the quiz).
+ * Returns the parsed JSON object.
+ */
+export async function generateJSON({ apiKey, system, prompt, signal }) {
+  const res = await fetch(`${BASE}/models/${MODEL_ID}:generateContent`, {
+    method: 'POST',
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+    },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: 'application/json' },
+    }),
+  });
+  if (!res.ok) throw await toError(res);
+
+  const json = await res.json();
+  const block = json.promptFeedback?.blockReason;
+  if (block) throw new GeminiError(`The prompt was blocked (${block}).`, 400);
+
+  const text = (json.candidates?.[0]?.content?.parts || [])
+    .filter((p) => !p.thought && typeof p.text === 'string')
+    .map((p) => p.text)
+    .join('')
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```$/, '');
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new GeminiError('The model returned an unreadable quiz. Please try again.', 502);
+  }
+}
+
+/** Turns any error into a short, user-friendly sentence. */
+export function friendlyError(err) {
+  if (err?.name === 'AbortError') return 'Generation stopped.';
+  if (err instanceof GeminiError) {
+    if (err.status === 401 || err.status === 403 || /api key/i.test(err.message)) {
+      return 'That API key was rejected by Google. Please check it and try again.';
+    }
+    if (err.status === 404) return `The model “${MODEL_ID}” is not available for this key.`;
+    if (err.status === 429) return 'Rate limit reached — wait a moment and try again.';
+    return err.message;
+  }
+  if (err instanceof TypeError) return 'Network error — check your internet connection.';
+  return err?.message || 'Something went wrong.';
+}
